@@ -1,0 +1,15 @@
+services:
+  hannah-asset-server:
+    image: registry.dev.kernstock.net/gessinger/voice/hannah-asset-server:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - asset-data:/data
+    environment:
+      - BASE_URL=https://assets.example.com
+      - STORAGE_PATH=/data
+      # - ADMIN_PASSWORD=change-me  # set on first run to bootstrap an admin user
+    restart: unless-stopped
+
+volumes:
+  asset-data:

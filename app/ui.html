@@ -1,0 +1,892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hannah Assets</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+
+<!-- ── Login Overlay ──────────────────────────────────────────────────────── -->
+<div id="loginOverlay" class="hidden fixed inset-0 bg-gray-950 flex items-center justify-center z-50">
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-8 w-full max-w-sm shadow-2xl">
+    <div class="flex items-center gap-2.5 mb-8 justify-center">
+      <div class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_2px_rgba(52,211,153,0.4)]"></div>
+      <span class="font-bold tracking-tight">Hannah Assets</span>
+    </div>
+    <form id="loginForm" onsubmit="submitLogin(event)" class="flex flex-col gap-3">
+      <input id="loginUsername" type="text" placeholder="Username" autocomplete="username"
+        class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
+      <input id="loginPassword" type="password" placeholder="Password" autocomplete="current-password"
+        class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500 transition-colors" />
+      <p id="loginError" class="text-red-400 text-xs hidden"></p>
+      <button type="submit"
+        class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 text-sm font-medium transition-colors mt-1">
+        Sign in
+      </button>
+    </form>
+    <div id="oauthSection" class="hidden mt-4">
+      <div class="flex items-center gap-3 my-3">
+        <div class="flex-1 border-t border-gray-800"></div>
+        <span class="text-xs text-gray-600">or</span>
+        <div class="flex-1 border-t border-gray-800"></div>
+      </div>
+      <button onclick="window.location='/api/auth/oauth2/authorize'"
+        class="w-full bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg py-2 text-sm transition-colors">
+        Login with Keycloak
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── App Shell ──────────────────────────────────────────────────────────── -->
+<div id="app" class="hidden min-h-screen flex flex-col">
+
+  <!-- Nav -->
+  <nav class="bg-gray-900 border-b border-gray-800 px-6 py-3 flex items-center gap-6">
+    <div class="flex items-center gap-2 mr-4">
+      <div class="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_2px_rgba(52,211,153,0.4)]"></div>
+      <span class="font-bold tracking-tight text-sm">Hannah Assets</span>
+    </div>
+    <button onclick="showView('assets')" id="nav-assets"
+      class="nav-btn text-sm px-3 py-1.5 rounded-lg transition-colors">Assets</button>
+    <button onclick="showView('admin')" id="nav-admin"
+      class="nav-btn text-sm px-3 py-1.5 rounded-lg transition-colors hidden">Admin</button>
+    <div class="ml-auto flex items-center gap-3">
+      <span id="navUsername" class="text-xs text-gray-400"></span>
+      <button onclick="logout()" class="text-xs text-gray-400 hover:text-gray-200 transition-colors">Sign out</button>
+    </div>
+  </nav>
+
+  <!-- Assets View -->
+  <div id="view-assets" class="hidden flex-1 p-6">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-lg font-semibold">Assets</h2>
+      <div class="flex gap-2">
+        <select id="nsFilter" onchange="loadAssets()"
+          class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500">
+          <option value="">All namespaces</option>
+        </select>
+        <button onclick="showUploadModal()"
+          class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-sm font-medium transition-colors">
+          Upload
+        </button>
+      </div>
+    </div>
+    <div id="assetsList" class="space-y-2"></div>
+  </div>
+
+  <!-- Admin View -->
+  <div id="view-admin" class="hidden flex-1 p-6">
+    <div class="flex gap-1 mb-6 bg-gray-900 border border-gray-800 rounded-lg p-1 w-fit">
+      <button onclick="showAdminTab('users')" id="atab-users" class="atab-btn text-sm px-3 py-1.5 rounded-md transition-colors">Users</button>
+      <button onclick="showAdminTab('groups')" id="atab-groups" class="atab-btn text-sm px-3 py-1.5 rounded-md transition-colors">Groups</button>
+      <button onclick="showAdminTab('roles')" id="atab-roles" class="atab-btn text-sm px-3 py-1.5 rounded-md transition-colors">Roles</button>
+      <button onclick="showAdminTab('namespaces')" id="atab-namespaces" class="atab-btn text-sm px-3 py-1.5 rounded-md transition-colors">Namespaces</button>
+      <button onclick="showAdminTab('sa')" id="atab-sa" class="atab-btn text-sm px-3 py-1.5 rounded-md transition-colors">Service Accounts</button>
+      <button onclick="showAdminTab('oauth2')" id="atab-oauth2" class="atab-btn text-sm px-3 py-1.5 rounded-md transition-colors">OAuth2</button>
+    </div>
+
+    <!-- Users tab -->
+    <div id="atab-content-users" class="hidden">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-semibold">Users</h3>
+        <button onclick="showCreateUserModal()"
+          class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-sm font-medium transition-colors">New User</button>
+      </div>
+      <div id="usersList" class="space-y-2"></div>
+    </div>
+
+    <!-- Groups tab -->
+    <div id="atab-content-groups" class="hidden">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-semibold">Groups</h3>
+        <button onclick="showCreateGroupModal()"
+          class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-sm font-medium transition-colors">New Group</button>
+      </div>
+      <div id="groupsList" class="space-y-3"></div>
+    </div>
+
+    <!-- Roles tab -->
+    <div id="atab-content-roles" class="hidden">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-semibold">Roles</h3>
+        <button onclick="showCreateRoleModal()"
+          class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-sm font-medium transition-colors">New Role</button>
+      </div>
+      <div id="rolesList" class="space-y-2"></div>
+    </div>
+
+    <!-- Namespaces tab -->
+    <div id="atab-content-namespaces" class="hidden">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-semibold">Namespaces</h3>
+        <button onclick="showCreateNamespaceModal()"
+          class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-sm font-medium transition-colors">New Namespace</button>
+      </div>
+      <div id="namespacesList" class="space-y-3"></div>
+    </div>
+
+    <!-- Service Accounts tab -->
+    <div id="atab-content-sa" class="hidden">
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="font-semibold">Service Accounts</h3>
+        <button onclick="showCreateSAModal()"
+          class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-sm font-medium transition-colors">New</button>
+      </div>
+      <div id="saList" class="space-y-2"></div>
+    </div>
+
+    <!-- OAuth2 tab -->
+    <div id="atab-content-oauth2" class="hidden">
+      <h3 class="font-semibold mb-4">OAuth2 / OIDC Configuration</h3>
+      <form onsubmit="saveOAuth2Config(event)" class="max-w-lg space-y-3">
+        <label class="flex items-center gap-2 text-sm">
+          <input type="checkbox" id="oauth2Enabled" class="rounded" />
+          Enable OAuth2 login
+        </label>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Issuer URL</label>
+          <input id="oauth2IssuerURL" type="text" placeholder="https://keycloak.example.com/realms/hannah"
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Client ID</label>
+          <input id="oauth2ClientID" type="text"
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+        </div>
+        <div>
+          <label class="block text-xs text-gray-400 mb-1">Client Secret</label>
+          <input id="oauth2ClientSecret" type="password"
+            class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+        </div>
+        <p class="text-xs text-gray-500">
+          Redirect URL wird automatisch auf <span class="font-mono">{BASE_URL}/api/auth/oauth2/callback</span> gesetzt.<br/>
+          Gruppen-Sync: Keycloak-Claim <span class="font-mono">groups</span> → Gruppe mit gleichem Namen hier.
+        </p>
+        <button type="submit"
+          class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors">
+          Save
+        </button>
+        <p id="oauth2Status" class="text-xs text-gray-400 hidden"></p>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- ── Upload Modal ───────────────────────────────────────────────────────── -->
+<div id="uploadModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-40">
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-md shadow-2xl">
+    <h3 class="font-semibold mb-4">Upload Asset</h3>
+    <form onsubmit="doUpload(event)" class="space-y-3">
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Key</label>
+        <input id="uploadKey" type="text" placeholder="e.g. sound-alert"
+          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Namespace</label>
+        <select id="uploadNs"
+          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"></select>
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">File</label>
+        <input id="uploadFile" type="file"
+          class="w-full text-sm text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-gray-700 file:text-gray-200 file:text-xs hover:file:bg-gray-600" />
+      </div>
+      <p id="uploadError" class="text-red-400 text-xs hidden"></p>
+      <div class="flex gap-2 pt-1">
+        <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 text-sm font-medium transition-colors">Upload</button>
+        <button type="button" onclick="closeModal('uploadModal')" class="flex-1 bg-gray-800 hover:bg-gray-700 rounded-lg py-2 text-sm transition-colors">Cancel</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Generic Modal ──────────────────────────────────────────────────────── -->
+<div id="genericModal" class="hidden fixed inset-0 bg-black/60 flex items-center justify-center z-40">
+  <div class="bg-gray-900 border border-gray-800 rounded-xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
+    <h3 id="genericModalTitle" class="font-semibold mb-4"></h3>
+    <div id="genericModalBody"></div>
+  </div>
+</div>
+
+<!-- ── Toast ──────────────────────────────────────────────────────────────── -->
+<div id="toast" class="hidden fixed bottom-6 right-6 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2.5 text-sm shadow-xl z-50"></div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let me = null;
+let namespaces = [];
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+async function init() {
+  const cfg = await api('GET', '/api/config');
+  if (cfg?.oauth2_enabled) document.getElementById('oauthSection').classList.remove('hidden');
+  const user = await api('GET', '/api/me');
+  if (!user || user.error) { showLogin(); return; }
+  me = user;
+  await loadNamespaces();
+  startApp();
+}
+
+// ── Namespaces (shared state) ───────────────────────────────────────────────
+async function loadNamespaces() {
+  namespaces = await api('GET', '/api/namespaces') || [];
+}
+
+function renderNsFilterOptions() {
+  const sel = document.getElementById('nsFilter');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">All namespaces</option>' +
+    namespaces.map(n => `<option value="${esc(n.name)}">${esc(n.name)}${n.parent ? ' (child of ' + esc(n.parent) + ')' : ''}</option>`).join('');
+  sel.value = current;
+}
+
+function showLogin() {
+  document.getElementById('loginOverlay').classList.remove('hidden');
+  document.getElementById('app').classList.add('hidden');
+}
+
+function startApp() {
+  document.getElementById('loginOverlay').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  document.getElementById('navUsername').textContent = me.username || me.service_name || '';
+  if (me.is_admin) document.getElementById('nav-admin').classList.remove('hidden');
+  renderNsFilterOptions();
+  showView('assets');
+}
+
+// ── Auth ─────────────────────────────────────────────────────────────────────
+async function submitLogin(e) {
+  e.preventDefault();
+  const err = document.getElementById('loginError');
+  err.classList.add('hidden');
+  const res = await api('POST', '/api/auth/login', {
+    username: document.getElementById('loginUsername').value,
+    password: document.getElementById('loginPassword').value,
+  });
+  if (!res || res.error) {
+    err.textContent = res?.error || 'Invalid credentials';
+    err.classList.remove('hidden');
+    return;
+  }
+  me = { type: 'user', user_id: res.user_id, username: res.username, is_admin: res.is_admin };
+  await loadNamespaces();
+  startApp();
+}
+
+async function logout() {
+  await api('POST', '/api/auth/logout');
+  me = null;
+  showLogin();
+}
+
+// ── Views ─────────────────────────────────────────────────────────────────────
+function showView(name) {
+  ['assets', 'admin'].forEach(v => {
+    document.getElementById('view-' + v).classList.add('hidden');
+    const b = document.getElementById('nav-' + v);
+    b.classList.remove('bg-gray-800', 'text-white');
+    b.classList.add('text-gray-400', 'hover:text-gray-200');
+  });
+  document.getElementById('view-' + name).classList.remove('hidden');
+  const btn = document.getElementById('nav-' + name);
+  btn.classList.add('bg-gray-800', 'text-white');
+  btn.classList.remove('text-gray-400', 'hover:text-gray-200');
+  if (name === 'assets') loadAssets();
+  if (name === 'admin') showAdminTab('users');
+}
+
+// ── Assets ────────────────────────────────────────────────────────────────────
+async function loadAssets() {
+  const ns = document.getElementById('nsFilter').value;
+  const url = ns ? `/manifest?namespace=${ns}` : '/api/assets';
+  const data = await api('GET', url);
+  const list = document.getElementById('assetsList');
+  if (!data) { list.innerHTML = '<p class="text-gray-500 text-sm">Failed to load.</p>'; return; }
+  let assets = Array.isArray(data) ? data
+    : Object.entries(data.assets || {}).map(([key, v]) => ({ key, ...v }));
+  if (!assets.length) { list.innerHTML = '<p class="text-gray-500 text-sm">No assets.</p>'; return; }
+  list.innerHTML = assets.map(a => `
+    <div class="bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 flex items-center gap-4">
+      <div class="flex-1 min-w-0">
+        <p class="font-medium text-sm truncate">${esc(a.key)}</p>
+        <p class="text-xs text-gray-400 mt-0.5">
+          ${esc(a.mime_type || a.mime || '')} &bull; ${fmtSize(a.size)} &bull;
+          ${esc(a.namespace || '')} &bull;
+          <span class="font-mono">${(a.sha256 || '').slice(0,12)}…</span>
+        </p>
+      </div>
+      <div class="flex gap-3 flex-shrink-0">
+        <a href="/assets/${esc(a.key)}?namespace=${esc(a.namespace)}" download class="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">Download</a>
+        ${me.is_admin ? `<button onclick='showMoveModal(${JSON.stringify(a.key)}, ${JSON.stringify(a.namespace)})' class="text-xs text-gray-400 hover:text-gray-200 transition-colors">Move</button>` : ''}
+        ${me.is_admin ? `<button onclick='deleteAsset(${JSON.stringify(a.key)}, ${JSON.stringify(a.namespace)})' class="text-xs text-red-400 hover:text-red-300 transition-colors">Delete</button>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+function showUploadModal() {
+  document.getElementById('uploadKey').value = '';
+  document.getElementById('uploadNs').innerHTML = namespaces.map(n => `<option value="${esc(n.name)}">${esc(n.name)}</option>`).join('');
+  document.getElementById('uploadFile').value = '';
+  document.getElementById('uploadError').classList.add('hidden');
+  document.getElementById('uploadModal').classList.remove('hidden');
+}
+
+async function doUpload(e) {
+  e.preventDefault();
+  const key = document.getElementById('uploadKey').value.trim();
+  const file = document.getElementById('uploadFile').files[0];
+  const ns = document.getElementById('uploadNs').value;
+  const errEl = document.getElementById('uploadError');
+  errEl.classList.add('hidden');
+  if (!key || !file || !ns) {
+    errEl.textContent = 'Key, file and namespace required.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+  const res = await fetch(`/namespaces/${encodeURIComponent(ns)}/assets/${encodeURIComponent(key)}`, {
+    method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) { errEl.textContent = data.error || `Error ${res.status}`; errEl.classList.remove('hidden'); return; }
+  closeModal('uploadModal'); toast('Uploaded ' + key); loadAssets();
+}
+
+function showMoveModal(key, currentNamespace) {
+  const options = namespaces.filter(n => n.name !== currentNamespace)
+    .map(n => `<option value="${esc(n.name)}">${esc(n.name)}</option>`).join('');
+  document.getElementById('genericModalTitle').textContent = 'Move Asset';
+  document.getElementById('genericModalBody').innerHTML = `
+    <form onsubmit='doMoveAsset(event, ${JSON.stringify(key)}, ${JSON.stringify(currentNamespace)})' class="space-y-3">
+      <p class="text-xs text-gray-400">Key: <span class="font-mono text-gray-200">${esc(key)}</span></p>
+      <p class="text-xs text-gray-400">Currently in: <span class="font-mono text-gray-200">${esc(currentNamespace)}</span></p>
+      <select id="moveTargetNs"
+        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500">
+        ${options}
+      </select>
+      <p id="moveError" class="text-red-400 text-xs hidden"></p>
+      <div class="flex gap-2">
+        <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 text-sm font-medium transition-colors">Move</button>
+        <button type="button" onclick="closeModal('genericModal')" class="flex-1 bg-gray-800 hover:bg-gray-700 rounded-lg py-2 text-sm transition-colors">Cancel</button>
+      </div>
+    </form>`;
+  document.getElementById('genericModal').classList.remove('hidden');
+}
+
+async function doMoveAsset(e, key, fromNs) {
+  e.preventDefault();
+  const toNs = document.getElementById('moveTargetNs').value;
+  const errEl = document.getElementById('moveError');
+  errEl.classList.add('hidden');
+  if (!toNs) { errEl.textContent = 'Target namespace required.'; errEl.classList.remove('hidden'); return; }
+  const dl = await fetch(`/assets/${encodeURIComponent(key)}?namespace=${encodeURIComponent(fromNs)}`);
+  if (!dl.ok) { errEl.textContent = 'Could not read the asset to move.'; errEl.classList.remove('hidden'); return; }
+  const blob = await dl.blob();
+  const up = await fetch(`/namespaces/${encodeURIComponent(toNs)}/assets/${encodeURIComponent(key)}`, {
+    method: 'PUT', headers: { 'Content-Type': blob.type || 'application/octet-stream' }, body: blob,
+  });
+  const upData = await up.json().catch(() => ({}));
+  if (!up.ok) { errEl.textContent = upData.error || `Upload error ${up.status}`; errEl.classList.remove('hidden'); return; }
+  await fetch(`/namespaces/${encodeURIComponent(fromNs)}/assets/${encodeURIComponent(key)}`, { method: 'DELETE' });
+  closeModal('genericModal'); toast('Moved ' + key); loadAssets();
+}
+
+async function deleteAsset(key, ns) {
+  if (!confirm(`Delete asset "${key}" from "${ns}"?`)) return;
+  await fetch(`/namespaces/${encodeURIComponent(ns)}/assets/${encodeURIComponent(key)}`, { method: 'DELETE' });
+  toast('Deleted ' + key); loadAssets();
+}
+
+// ── Admin ─────────────────────────────────────────────────────────────────────
+function showAdminTab(name) {
+  ['users','groups','roles','namespaces','sa','oauth2'].forEach(t => {
+    document.getElementById('atab-content-' + t).classList.add('hidden');
+    const b = document.getElementById('atab-' + t);
+    b.classList.remove('bg-gray-800','text-white');
+    b.classList.add('text-gray-400','hover:text-gray-200');
+  });
+  document.getElementById('atab-content-' + name).classList.remove('hidden');
+  const btn = document.getElementById('atab-' + name);
+  btn.classList.add('bg-gray-800','text-white');
+  btn.classList.remove('text-gray-400','hover:text-gray-200');
+  if (name === 'users') loadUsers();
+  if (name === 'groups') loadGroups();
+  if (name === 'roles') loadRoles();
+  if (name === 'namespaces') loadNamespacesAdmin();
+  if (name === 'sa') loadServiceAccounts();
+  if (name === 'oauth2') loadOAuth2Config();
+}
+
+// ── Users ─────────────────────────────────────────────────────────────────────
+async function loadUsers() {
+  const users = await api('GET', '/api/users') || [];
+  document.getElementById('usersList').innerHTML = users.map(u => `
+    <div class="bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 flex items-center gap-3">
+      <div class="flex-1">
+        <p class="text-sm font-medium">${esc(u.username)}
+          ${u.is_admin ? '<span class="text-xs text-amber-400 ml-1">admin</span>' : ''}
+          ${!u.is_active ? '<span class="text-xs text-red-400 ml-1">disabled</span>' : ''}
+        </p>
+        <p class="text-xs text-gray-400">${u.has_password ? 'password' : ''}${u.has_oidc ? ' oidc' : ''}</p>
+      </div>
+      <button onclick="toggleAdmin('${esc(u.id)}', ${u.is_admin})"
+        class="text-xs ${u.is_admin ? 'text-amber-400 hover:text-amber-300' : 'text-gray-400 hover:text-gray-200'} transition-colors">
+        ${u.is_admin ? 'Revoke admin' : 'Make admin'}
+      </button>
+      <button onclick="deleteUser('${esc(u.id)}', '${esc(u.username)}')"
+        class="text-xs text-red-400 hover:text-red-300 transition-colors">Delete</button>
+    </div>`).join('') || '<p class="text-gray-500 text-sm">No users.</p>';
+}
+
+async function toggleAdmin(id, isAdmin) {
+  await api('PUT', `/api/users/${id}`, { is_admin: !isAdmin });
+  toast(isAdmin ? 'Admin revoked' : 'Admin granted');
+  loadUsers();
+}
+
+function showCreateUserModal() {
+  document.getElementById('genericModalTitle').textContent = 'New User';
+  document.getElementById('genericModalBody').innerHTML = `
+    <form onsubmit="createUser(event)" class="space-y-3">
+      <input id="newUsername" type="text" placeholder="Username"
+        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+      <input id="newPassword" type="password" placeholder="Password"
+        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+      <label class="flex items-center gap-2 text-sm"><input type="checkbox" id="newIsAdmin" /> Admin</label>
+      <p id="createUserError" class="text-red-400 text-xs hidden"></p>
+      <div class="flex gap-2">
+        <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 text-sm font-medium transition-colors">Create</button>
+        <button type="button" onclick="closeModal('genericModal')" class="flex-1 bg-gray-800 hover:bg-gray-700 rounded-lg py-2 text-sm transition-colors">Cancel</button>
+      </div>
+    </form>`;
+  document.getElementById('genericModal').classList.remove('hidden');
+}
+
+async function createUser(e) {
+  e.preventDefault();
+  const res = await api('POST', '/api/users', {
+    username: document.getElementById('newUsername').value,
+    password: document.getElementById('newPassword').value,
+    is_admin: document.getElementById('newIsAdmin').checked,
+  });
+  if (!res || res.error) {
+    document.getElementById('createUserError').textContent = res?.error || 'Error';
+    document.getElementById('createUserError').classList.remove('hidden');
+    return;
+  }
+  closeModal('genericModal'); toast('User created'); loadUsers();
+}
+
+async function deleteUser(id, name) {
+  if (!confirm(`Delete user "${name}"?`)) return;
+  await api('DELETE', `/api/users/${id}`);
+  toast('Deleted ' + name); loadUsers();
+}
+
+// ── Groups ────────────────────────────────────────────────────────────────────
+async function loadGroups() {
+  const groups = await api('GET', '/api/groups') || [];
+  const el = document.getElementById('groupsList');
+  if (!groups.length) { el.innerHTML = '<p class="text-gray-500 text-sm">No groups.</p>'; return; }
+  el.innerHTML = groups.map(g => `
+    <div class="bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+      <div class="px-4 py-3 flex items-center gap-3">
+        <div class="flex-1">
+          <p class="text-sm font-medium">${esc(g.name)}</p>
+          ${g.description ? `<p class="text-xs text-gray-400">${esc(g.description)}</p>` : ''}
+        </div>
+        <button onclick="toggleGroupDetail('${esc(g.id)}')"
+          class="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">Manage</button>
+        <button onclick="deleteGroup('${esc(g.id)}', '${esc(g.name)}')"
+          class="text-xs text-red-400 hover:text-red-300 transition-colors">Delete</button>
+      </div>
+      <div id="group-detail-${esc(g.id)}" class="hidden border-t border-gray-800 px-4 py-3 space-y-4">
+        <div>
+          <p class="text-xs font-medium text-gray-400 mb-2">Members</p>
+          <div id="group-members-${esc(g.id)}" class="space-y-1 mb-2"></div>
+          <div class="flex gap-2">
+            <select id="group-add-member-${esc(g.id)}"
+              class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-emerald-500"></select>
+            <button onclick="addGroupMember('${esc(g.id)}')"
+              class="bg-gray-700 hover:bg-gray-600 rounded-lg px-3 py-1.5 text-xs transition-colors">Add</button>
+          </div>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-gray-400 mb-2">Roles</p>
+          <div id="group-roles-${esc(g.id)}" class="space-y-1 mb-2"></div>
+          <div class="flex gap-2">
+            <select id="group-add-role-${esc(g.id)}"
+              class="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-emerald-500"></select>
+            <button onclick="addGroupRole('${esc(g.id)}')"
+              class="bg-gray-700 hover:bg-gray-600 rounded-lg px-3 py-1.5 text-xs transition-colors">Add</button>
+          </div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+async function toggleGroupDetail(gid) {
+  const el = document.getElementById('group-detail-' + gid);
+  if (el.classList.contains('hidden')) {
+    el.classList.remove('hidden');
+    await refreshGroupDetail(gid);
+  } else {
+    el.classList.add('hidden');
+  }
+}
+
+async function refreshGroupDetail(gid) {
+  const [members, roles, allUsers, allRoles] = await Promise.all([
+    api('GET', `/api/groups/${gid}/members`),
+    api('GET', `/api/groups/${gid}/roles`),
+    api('GET', '/api/users'),
+    api('GET', '/api/roles'),
+  ]);
+
+  const memberIDs = new Set((members || []).map(m => m.id));
+  document.getElementById('group-members-' + gid).innerHTML =
+    (members || []).map(m => `
+      <div class="flex items-center justify-between text-xs py-0.5">
+        <span>${esc(m.username)}${m.is_admin ? ' <span class="text-amber-400">admin</span>' : ''}</span>
+        <button onclick="removeGroupMember('${gid}','${esc(m.id)}')" class="text-red-400 hover:text-red-300">Remove</button>
+      </div>`).join('') || '<p class="text-xs text-gray-500">No members.</p>';
+
+  const memberSelect = document.getElementById('group-add-member-' + gid);
+  memberSelect.innerHTML = (allUsers || []).filter(u => !memberIDs.has(u.id))
+    .map(u => `<option value="${esc(u.id)}">${esc(u.username)}</option>`).join('');
+
+  const roleIDs = new Set((roles || []).map(r => r.id));
+  document.getElementById('group-roles-' + gid).innerHTML =
+    (roles || []).map(r => `
+      <div class="flex items-center justify-between text-xs py-0.5">
+        <span>${esc(r.name)} <span class="text-gray-500">${(r.permissions||[]).map(p=>`${p.namespace}:${p.action}`).join(', ')}</span></span>
+        <button onclick="removeGroupRole('${gid}','${esc(r.id)}')" class="text-red-400 hover:text-red-300">Remove</button>
+      </div>`).join('') || '<p class="text-xs text-gray-500">No roles.</p>';
+
+  const roleSelect = document.getElementById('group-add-role-' + gid);
+  roleSelect.innerHTML = (allRoles || []).filter(r => !roleIDs.has(r.id))
+    .map(r => `<option value="${esc(r.id)}">${esc(r.name)}</option>`).join('');
+}
+
+async function addGroupMember(gid) {
+  const sel = document.getElementById('group-add-member-' + gid);
+  if (!sel.value) return;
+  await api('POST', `/api/groups/${gid}/members`, { user_id: sel.value });
+  await refreshGroupDetail(gid);
+}
+
+async function removeGroupMember(gid, uid) {
+  await api('DELETE', `/api/groups/${gid}/members/${uid}`);
+  await refreshGroupDetail(gid);
+}
+
+async function addGroupRole(gid) {
+  const sel = document.getElementById('group-add-role-' + gid);
+  if (!sel.value) return;
+  await api('POST', `/api/groups/${gid}/roles`, { role_id: sel.value });
+  await refreshGroupDetail(gid);
+}
+
+async function removeGroupRole(gid, rid) {
+  await api('DELETE', `/api/groups/${gid}/roles/${rid}`);
+  await refreshGroupDetail(gid);
+}
+
+function showCreateGroupModal() {
+  document.getElementById('genericModalTitle').textContent = 'New Group';
+  document.getElementById('genericModalBody').innerHTML = `
+    <form onsubmit="createGroup(event)" class="space-y-3">
+      <input id="newGroupName" type="text" placeholder="Name"
+        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+      <input id="newGroupDesc" type="text" placeholder="Description (optional)"
+        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+      <div class="flex gap-2">
+        <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 text-sm font-medium transition-colors">Create</button>
+        <button type="button" onclick="closeModal('genericModal')" class="flex-1 bg-gray-800 hover:bg-gray-700 rounded-lg py-2 text-sm transition-colors">Cancel</button>
+      </div>
+    </form>`;
+  document.getElementById('genericModal').classList.remove('hidden');
+}
+
+async function createGroup(e) {
+  e.preventDefault();
+  const res = await api('POST', '/api/groups', {
+    name: document.getElementById('newGroupName').value,
+    description: document.getElementById('newGroupDesc').value,
+  });
+  if (!res || res.error) return;
+  closeModal('genericModal'); toast('Group created'); loadGroups();
+}
+
+async function deleteGroup(id, name) {
+  if (!confirm(`Delete group "${name}"?`)) return;
+  await api('DELETE', `/api/groups/${id}`);
+  toast('Deleted ' + name); loadGroups();
+}
+
+// ── Roles ─────────────────────────────────────────────────────────────────────
+async function loadRoles() {
+  const roles = await api('GET', '/api/roles') || [];
+  document.getElementById('rolesList').innerHTML = roles.map(r => `
+    <div class="bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 flex items-center gap-3">
+      <div class="flex-1">
+        <p class="text-sm font-medium">${esc(r.name)}</p>
+        <p class="text-xs text-gray-400">${(r.permissions||[]).map(p=>`${p.namespace}:${p.action}`).join(', ') || 'no permissions'}</p>
+      </div>
+      <button onclick="deleteRole('${esc(r.id)}', '${esc(r.name)}')"
+        class="text-xs text-red-400 hover:text-red-300 transition-colors">Delete</button>
+    </div>`).join('') || '<p class="text-gray-500 text-sm">No roles.</p>';
+}
+
+function showCreateRoleModal() {
+  document.getElementById('genericModalTitle').textContent = 'New Role';
+  document.getElementById('genericModalBody').innerHTML = `
+    <form onsubmit="createRole(event)" class="space-y-3">
+      <input id="newRoleName" type="text" placeholder="Name"
+        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+      <p class="text-xs text-gray-400">Permissions — eine pro Zeile: <span class="font-mono">namespace:action</span></p>
+      <textarea id="newRolePerms" rows="4" placeholder="core:read&#10;satellite:read&#10;core:write"
+        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-emerald-500"></textarea>
+      <div class="flex gap-2">
+        <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 text-sm font-medium transition-colors">Create</button>
+        <button type="button" onclick="closeModal('genericModal')" class="flex-1 bg-gray-800 hover:bg-gray-700 rounded-lg py-2 text-sm transition-colors">Cancel</button>
+      </div>
+    </form>`;
+  document.getElementById('genericModal').classList.remove('hidden');
+}
+
+async function createRole(e) {
+  e.preventDefault();
+  const perms = document.getElementById('newRolePerms').value.trim().split('\n').filter(Boolean)
+    .map(l => { const [ns, act] = l.split(':'); return { namespace: ns?.trim(), action: act?.trim() }; })
+    .filter(p => p.namespace && p.action);
+  const res = await api('POST', '/api/roles', { name: document.getElementById('newRoleName').value, permissions: perms });
+  if (!res || res.error) return;
+  closeModal('genericModal'); toast('Role created'); loadRoles();
+}
+
+async function deleteRole(id, name) {
+  if (!confirm(`Delete role "${name}"?`)) return;
+  await api('DELETE', `/api/roles/${id}`);
+  toast('Deleted ' + name); loadRoles();
+}
+
+// ── Namespaces (admin) ───────────────────────────────────────────────────────
+async function loadNamespacesAdmin() {
+  await loadNamespaces();
+  renderNsFilterOptions();
+  const el = document.getElementById('namespacesList');
+  if (!namespaces.length) { el.innerHTML = '<p class="text-gray-500 text-sm">No namespaces.</p>'; return; }
+  el.innerHTML = namespaces.map(n => `
+    <div class="bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 flex items-center gap-3">
+      <div class="flex-1">
+        <p class="text-sm font-medium">${esc(n.name)}${n.parent ? ` <span class="text-xs text-gray-500">— child of ${esc(n.parent)}</span>` : ''}</p>
+        ${n.description ? `<p class="text-xs text-gray-400">${esc(n.description)}</p>` : ''}
+      </div>
+      <button onclick="deleteNamespace('${esc(n.name)}')" class="text-xs text-red-400 hover:text-red-300 transition-colors">Delete</button>
+    </div>`).join('');
+}
+
+function showCreateNamespaceModal() {
+  const parentOptions = namespaces.map(n => `<option value="${esc(n.name)}">${esc(n.name)}</option>`).join('');
+  document.getElementById('genericModalTitle').textContent = 'New Namespace';
+  document.getElementById('genericModalBody').innerHTML = `
+    <form onsubmit="createNamespace(event)" class="space-y-3">
+      <input id="newNsName" type="text" placeholder="Name (e.g. satellite-test)"
+        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+      <select id="newNsParent"
+        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500">
+        <option value="">— no parent —</option>
+        ${parentOptions}
+      </select>
+      <input id="newNsDesc" type="text" placeholder="Description (optional)"
+        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+      <p id="createNsError" class="text-red-400 text-xs hidden"></p>
+      <div class="flex gap-2">
+        <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 text-sm font-medium transition-colors">Create</button>
+        <button type="button" onclick="closeModal('genericModal')" class="flex-1 bg-gray-800 hover:bg-gray-700 rounded-lg py-2 text-sm transition-colors">Cancel</button>
+      </div>
+    </form>`;
+  document.getElementById('genericModal').classList.remove('hidden');
+}
+
+async function createNamespace(e) {
+  e.preventDefault();
+  const res = await api('POST', '/api/namespaces', {
+    name: document.getElementById('newNsName').value.trim(),
+    parent: document.getElementById('newNsParent').value,
+    description: document.getElementById('newNsDesc').value,
+  });
+  if (!res || res.error) {
+    document.getElementById('createNsError').textContent = res?.error || 'Error';
+    document.getElementById('createNsError').classList.remove('hidden');
+    return;
+  }
+  closeModal('genericModal'); toast('Namespace created'); loadNamespacesAdmin();
+}
+
+async function deleteNamespace(name) {
+  if (!confirm(`Delete namespace "${name}"?`)) return;
+  const res = await api('DELETE', `/api/namespaces/${encodeURIComponent(name)}`);
+  if (res && res.error) { toast(res.error); return; }
+  toast('Deleted ' + name); loadNamespacesAdmin();
+}
+
+// ── Service Accounts ──────────────────────────────────────────────────────────
+async function loadServiceAccounts() {
+  const accounts = await api('GET', '/api/service-accounts') || [];
+  document.getElementById('saList').innerHTML = accounts.map(sa => `
+    <div class="bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 flex items-center gap-3">
+      <div class="flex-1">
+        <p class="text-sm font-medium">${esc(sa.name)}</p>
+        <p class="text-xs text-gray-400">${sa.is_active ? 'active' : 'disabled'}</p>
+      </div>
+      <button onclick="showSADetail('${esc(sa.id)}')" class="text-xs text-emerald-400 hover:text-emerald-300 transition-colors">Manage</button>
+      <button onclick="deleteSA('${esc(sa.id)}', '${esc(sa.name)}')" class="text-xs text-red-400 hover:text-red-300 transition-colors">Delete</button>
+    </div>`).join('') || '<p class="text-gray-500 text-sm">No service accounts.</p>';
+}
+
+function showCreateSAModal() {
+  document.getElementById('genericModalTitle').textContent = 'New Service Account';
+  document.getElementById('genericModalBody').innerHTML = `
+    <form onsubmit="createSA(event)" class="space-y-3">
+      <input id="newSAName" type="text" placeholder="Name"
+        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
+      <div class="flex gap-2">
+        <button type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 text-sm font-medium transition-colors">Create</button>
+        <button type="button" onclick="closeModal('genericModal')" class="flex-1 bg-gray-800 hover:bg-gray-700 rounded-lg py-2 text-sm transition-colors">Cancel</button>
+      </div>
+    </form>`;
+  document.getElementById('genericModal').classList.remove('hidden');
+}
+
+async function createSA(e) {
+  e.preventDefault();
+  const res = await api('POST', '/api/service-accounts', { name: document.getElementById('newSAName').value });
+  if (!res || res.error) return;
+  closeModal('genericModal'); toast('Service account created'); loadServiceAccounts();
+}
+
+async function showSADetail(id) {
+  const sa = await api('GET', `/api/service-accounts/${id}`);
+  if (!sa) return;
+  const perms = (sa.permissions || []).map(p => `${p.namespace}:${p.action}`).join('\n');
+  const tokens = (sa.tokens || []).map(t => `
+    <div class="flex items-center justify-between text-xs py-1">
+      <span class="font-mono">${esc(t.name)}</span>
+      <button onclick="revokeToken('${esc(id)}','${esc(t.id)}')" class="text-red-400 hover:text-red-300">Revoke</button>
+    </div>`).join('') || '<p class="text-xs text-gray-500">No tokens.</p>';
+
+  document.getElementById('genericModalTitle').textContent = sa.name;
+  document.getElementById('genericModalBody').innerHTML = `
+    <div class="space-y-4">
+      <div>
+        <p class="text-xs text-gray-400 mb-1">Permissions (namespace:action per line)</p>
+        <textarea id="saPerms" rows="4" class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:border-emerald-500">${esc(perms)}</textarea>
+        <button onclick="saveSAPerms('${esc(id)}')"
+          class="mt-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-sm font-medium transition-colors">Save Permissions</button>
+      </div>
+      <div>
+        <p class="text-xs text-gray-400 mb-1">Tokens</p>
+        ${tokens}
+        <button onclick="createToken('${esc(id)}')"
+          class="mt-2 bg-gray-700 hover:bg-gray-600 rounded-lg px-3 py-1.5 text-sm transition-colors">Create Token</button>
+      </div>
+      <div id="newTokenDisplay" class="hidden bg-gray-800 rounded-lg p-3">
+        <p class="text-xs text-gray-400 mb-1">New token (copy now, shown once):</p>
+        <p id="newTokenValue" class="text-xs font-mono break-all text-emerald-400"></p>
+      </div>
+      <button onclick="closeModal('genericModal')" class="w-full bg-gray-800 hover:bg-gray-700 rounded-lg py-2 text-sm transition-colors">Close</button>
+    </div>`;
+  document.getElementById('genericModal').classList.remove('hidden');
+}
+
+async function saveSAPerms(id) {
+  const lines = document.getElementById('saPerms').value.trim().split('\n').filter(Boolean);
+  const permissions = lines.map(l => { const [ns, act] = l.split(':'); return { namespace: ns?.trim(), action: act?.trim() }; })
+    .filter(p => p.namespace && p.action);
+  await api('PUT', `/api/service-accounts/${id}/permissions`, { permissions });
+  toast('Permissions saved');
+}
+
+async function createToken(saID) {
+  const res = await api('POST', `/api/service-accounts/${saID}/tokens`, { name: 'token' });
+  if (!res || res.error) { toast('Failed to create token'); return; }
+  document.getElementById('newTokenDisplay').classList.remove('hidden');
+  document.getElementById('newTokenValue').textContent = res.token;
+}
+
+async function revokeToken(saID, tokenID) {
+  if (!confirm('Revoke this token?')) return;
+  await api('DELETE', `/api/service-accounts/${saID}/tokens/${tokenID}`);
+  toast('Token revoked'); showSADetail(saID);
+}
+
+async function deleteSA(id, name) {
+  if (!confirm(`Delete service account "${name}"?`)) return;
+  await api('DELETE', `/api/service-accounts/${id}`);
+  toast('Deleted ' + name); loadServiceAccounts();
+}
+
+// ── OAuth2 ────────────────────────────────────────────────────────────────────
+async function loadOAuth2Config() {
+  const cfg = await api('GET', '/api/oauth2/config');
+  if (!cfg) return;
+  document.getElementById('oauth2Enabled').checked = !!cfg.enabled;
+  document.getElementById('oauth2IssuerURL').value = cfg.issuer_url || '';
+  document.getElementById('oauth2ClientID').value = cfg.client_id || '';
+  document.getElementById('oauth2ClientSecret').value = cfg.client_secret || '';
+}
+
+async function saveOAuth2Config(e) {
+  e.preventDefault();
+  const status = document.getElementById('oauth2Status');
+  const res = await api('PUT', '/api/oauth2/config', {
+    enabled: document.getElementById('oauth2Enabled').checked,
+    issuer_url: document.getElementById('oauth2IssuerURL').value,
+    client_id: document.getElementById('oauth2ClientID').value,
+    client_secret: document.getElementById('oauth2ClientSecret').value,
+  });
+  status.textContent = res?.error ? 'Error: ' + res.error : 'Saved.';
+  status.classList.remove('hidden');
+  setTimeout(() => status.classList.add('hidden'), 3000);
+}
+
+// ── Utilities ─────────────────────────────────────────────────────────────────
+async function api(method, url, body) {
+  try {
+    const opts = { method, headers: {} };
+    if (body) { opts.body = JSON.stringify(body); opts.headers['Content-Type'] = 'application/json'; }
+    const res = await fetch(url, opts);
+    if (res.status === 204) return {};
+    return await res.json();
+  } catch { return null; }
+}
+
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+function esc(s) {
+  return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtSize(bytes) {
+  if (!bytes) return '0 B';
+  const u = ['B','KB','MB','GB']; let i = 0;
+  while (bytes >= 1024 && i < u.length-1) { bytes /= 1024; i++; }
+  return bytes.toFixed(i ? 1 : 0) + ' ' + u[i];
+}
+
+let toastTimer;
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg; el.classList.remove('hidden');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.add('hidden'), 3000);
+}
+
+init();
+</script>
+</body>
+</html>

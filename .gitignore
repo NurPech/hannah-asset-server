@@ -1,0 +1,8 @@
+server
+data/
+__pycache__/
+*.env
+!stack.env
+.mcp.json
+hannah-asset-server.exe
+.claude/settings.local.json
