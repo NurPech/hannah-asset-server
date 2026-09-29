@@ -68,6 +68,14 @@
           class="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-emerald-500">
           <option value="">All namespaces</option>
         </select>
+        <button onclick="exportNamespace()" title="Exports the assets owned by the selected namespace (not inherited ones)"
+          class="bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg px-3 py-1.5 text-sm transition-colors">
+          Export
+        </button>
+        <button onclick="showImportModal()"
+          class="bg-gray-800 hover:bg-gray-700 border border-gray-700 rounded-lg px-3 py-1.5 text-sm transition-colors">
+          Import
+        </button>
         <button onclick="showUploadModal()"
           class="bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg px-3 py-1.5 text-sm font-medium transition-colors">
           Upload
@@ -162,7 +170,7 @@
             class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500" />
         </div>
         <p class="text-xs text-gray-500">
-          Redirect URL wird automatisch auf <span class="font-mono">{BASE_URL}/api/auth/oauth2/callback</span> gesetzt.<br/>
+          Redirect URL wird automatisch auf <span class="font-mono">{Host}/api/auth/oauth2/callback</span> gesetzt.<br/>
           Gruppen-Sync: Keycloak-Claim <span class="font-mono">groups</span> → Gruppe mit gleichem Namen hier.
         </p>
         <button type="submit"
@@ -353,6 +361,76 @@ async function doUpload(e) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) { errEl.textContent = data.error || `Error ${res.status}`; errEl.classList.remove('hidden'); return; }
   closeModal('uploadModal'); toast('Uploaded ' + key); loadAssets();
+}
+
+// ── Export / Import ───────────────────────────────────────────────────────────
+function exportNamespace() {
+  const ns = document.getElementById('nsFilter').value;
+  if (!ns) { toast('Select a namespace to export first'); return; }
+  window.location.href = `/api/export?namespace=${encodeURIComponent(ns)}`;
+}
+
+function showImportModal() {
+  const nsOptions = namespaces.map(n => `<option value="${esc(n.name)}">${esc(n.name)}</option>`).join('');
+  document.getElementById('genericModalTitle').textContent = 'Import Assets';
+  document.getElementById('genericModalBody').innerHTML = `
+    <form onsubmit="doImport(event)" class="space-y-3">
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Bundle (.tar.gz)</label>
+        <input id="importFile" type="file" accept=".gz,.tgz,application/gzip"
+          class="w-full text-sm text-gray-400 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:bg-gray-700 file:text-gray-200 file:text-xs hover:file:bg-gray-600" />
+      </div>
+      <div>
+        <label class="block text-xs text-gray-400 mb-1">Target namespace</label>
+        <select id="importNs"
+          class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-emerald-500">
+          <option value="">As named in the bundle${me.is_admin ? ' (created if missing)' : ''}</option>${nsOptions}
+        </select>
+      </div>
+      <label class="flex items-center gap-2 text-sm text-gray-300">
+        <input id="importOverwrite" type="checkbox" class="accent-emerald-500" />
+        Overwrite assets whose content differs
+      </label>
+      <p id="importError" class="text-red-400 text-xs hidden"></p>
+      <div id="importResult" class="text-xs text-gray-300 space-y-1 hidden"></div>
+      <div class="flex gap-2 pt-1">
+        <button id="importBtn" type="submit" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg py-2 text-sm font-medium transition-colors">Import</button>
+        <button type="button" onclick="closeModal('genericModal')" class="flex-1 bg-gray-800 hover:bg-gray-700 rounded-lg py-2 text-sm transition-colors">Close</button>
+      </div>
+    </form>`;
+  document.getElementById('genericModal').classList.remove('hidden');
+}
+
+async function doImport(e) {
+  e.preventDefault();
+  const file = document.getElementById('importFile').files[0];
+  const errEl = document.getElementById('importError');
+  const resEl = document.getElementById('importResult');
+  errEl.classList.add('hidden'); resEl.classList.add('hidden');
+  if (!file) { errEl.textContent = 'Select a bundle first.'; errEl.classList.remove('hidden'); return; }
+  const params = new URLSearchParams();
+  const ns = document.getElementById('importNs').value;
+  if (ns) params.set('namespace', ns);
+  if (document.getElementById('importOverwrite').checked) params.set('overwrite', 'true');
+  const btn = document.getElementById('importBtn');
+  btn.disabled = true; btn.textContent = 'Importing…';
+  try {
+    const res = await fetch('/api/import?' + params, { method: 'POST', body: file });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { errEl.textContent = data.error || `Error ${res.status}`; errEl.classList.remove('hidden'); return; }
+    const line = (label, items, cls) => items?.length
+      ? `<p class="${cls}">${label} (${items.length}): <span class="font-mono">${items.map(esc).join(', ')}</span></p>` : '';
+    resEl.innerHTML =
+      `<p>Target: <span class="font-mono">${esc(data.namespace)}</span>${data.namespace_created ? ' (created)' : ''}</p>` +
+      line('Imported', data.imported, 'text-emerald-400') +
+      line('Unchanged', data.unchanged, 'text-gray-400') +
+      line('Conflicts, skipped — enable overwrite to replace', data.conflicts, 'text-yellow-400') +
+      line('Errors', (data.errors || []).map(x => x.key ? `${x.key}: ${x.error}` : x.error), 'text-red-400');
+    resEl.classList.remove('hidden');
+    await loadNamespaces(); renderNsFilterOptions(); loadAssets();
+  } finally {
+    btn.disabled = false; btn.textContent = 'Import';
+  }
 }
 
 function showMoveModal(key, currentNamespace) {

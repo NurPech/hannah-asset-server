@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -19,12 +20,12 @@ var uiHTML []byte
 // ── App ───────────────────────────────────────────────────────────────────────
 
 type App struct {
-	store        *Store
-	storagePath  string
-	baseURL      string
-	oidcProvider *oidc.Provider
-	mu           sync.RWMutex
-	secureCookie bool
+	store          *Store
+	storagePath    string
+	maxImportBytes int64
+	oidcProvider   *oidc.Provider
+	mu             sync.RWMutex
+	secureCookie   bool
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -32,13 +33,13 @@ type App struct {
 func main() {
 	port := envOr("PORT", "8080")
 	storagePath := envOr("STORAGE_PATH", "/data")
-	baseURL := os.Getenv("BASE_URL")
-	if baseURL == "" {
-		log.Fatal("BASE_URL must be set (e.g. https://assets.hannah.local)")
-	}
 	dbPath := envOr("DB_PATH", filepath.Join(storagePath, "assets.db"))
 	adminPassword := os.Getenv("ADMIN_PASSWORD")
 	secureCookie := os.Getenv("INSECURE_COOKIE") != "true"
+	maxImportBytes, err := strconv.ParseInt(envOr("MAX_IMPORT_BYTES", "2147483648"), 10, 64)
+	if err != nil || maxImportBytes <= 0 {
+		log.Fatal("MAX_IMPORT_BYTES must be a positive integer")
+	}
 
 	if err := os.MkdirAll(storagePath, 0o755); err != nil {
 		log.Fatalf("cannot create storage path: %v", err)
@@ -56,7 +57,7 @@ func main() {
 		log.Fatalf("bootstrap failed: %v", err)
 	}
 
-	app := &App{store: store, storagePath: storagePath, baseURL: baseURL, secureCookie: secureCookie}
+	app := &App{store: store, storagePath: storagePath, maxImportBytes: maxImportBytes, secureCookie: secureCookie}
 
 	go func() {
 		for range time.NewTicker(1 * time.Hour).C {
@@ -107,6 +108,8 @@ func (app *App) registerRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("PUT /namespaces/{ns}/assets/{key}", auth(requireAuth, app.handleUpload))
 	mux.HandleFunc("DELETE /namespaces/{ns}/assets/{key}", auth(requireAuth, app.handleDeleteAsset))
 	mux.HandleFunc("GET /namespaces/{ns}/assets", auth(requireAuth, app.handleListNamespaceAssets))
+	mux.HandleFunc("GET /api/export", auth(requireAuth, app.handleExport))
+	mux.HandleFunc("POST /api/import", auth(requireAuth, app.handleImport))
 
 	// Namespaces (admin)
 	mux.HandleFunc("GET /api/namespaces", auth(requireAuth, app.handleListNamespaces))

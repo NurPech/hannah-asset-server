@@ -48,7 +48,7 @@ func (app *App) buildOAuth2Config(cfg *OAuth2Config, provider *oidc.Provider, re
 }
 
 // requestRedirectURL derives the OAuth2 callback URL from the incoming request instead of a
-// statically configured scheme, since BASE_URL has no scheme (Traefik sits behind NetScaler,
+// statically configured URL, since the scheme is not known to the app (Traefik sits behind NetScaler,
 // which terminates TLS and is trusted via forwardedHeaders.trustedIPs to set X-Forwarded-Proto).
 func requestRedirectURL(r *http.Request) string {
 	scheme := r.Header.Get("X-Forwarded-Proto")

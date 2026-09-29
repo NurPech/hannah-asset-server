@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -183,6 +184,34 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}
+
+	asset, err := app.storeAsset(ns, key, mimeType, r.Body, "")
+	if err != nil {
+		if errors.Is(err, errInvalidKey) {
+			writeError(w, http.StatusBadRequest, "invalid key")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal error")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"namespace": ns,
+		"key":       key,
+		"sha256":    asset.SHA256,
+		"size":      asset.Size,
+	})
+}
+
+var (
+	errInvalidKey       = errors.New("invalid key")
+	errChecksumMismatch = errors.New("sha256 mismatch")
+)
+
+// storeAsset writes src to disk as (ns, key) and upserts the DB row. If wantSHA is non-empty
+// the content must hash to it, otherwise nothing is stored and errChecksumMismatch is returned.
+// The caller is responsible for authorization and for validating ns and key.
+func (app *App) storeAsset(ns, key, mimeType string, src io.Reader, wantSHA string) (*Asset, error) {
 	if mt, _, err := mime.ParseMediaType(mimeType); err == nil {
 		mimeType = mt
 	}
@@ -190,47 +219,44 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	nsDir := filepath.Join(app.storagePath, ns)
 	if err := os.MkdirAll(nsDir, 0o755); err != nil {
 		log.Printf("upload mkdir: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal error")
-		return
+		return nil, err
 	}
 
 	tmp, err := os.CreateTemp(nsDir, "upload-*")
 	if err != nil {
 		log.Printf("upload create temp: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal error")
-		return
+		return nil, err
 	}
 	tmpName := tmp.Name()
 	defer os.Remove(tmpName)
 
 	h := sha256.New()
-	size, err := io.Copy(io.MultiWriter(tmp, h), r.Body)
+	size, err := io.Copy(io.MultiWriter(tmp, h), src)
 	tmp.Close()
 	if err != nil {
 		log.Printf("upload read body: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal error")
-		return
+		return nil, err
 	}
 	checksum := fmt.Sprintf("%x", h.Sum(nil))
+	if wantSHA != "" && !strings.EqualFold(wantSHA, checksum) {
+		return nil, errChecksumMismatch
+	}
 
 	filename := key + extForMime(mimeType)
 	destPath := filepath.Join(nsDir, filename)
 	if !strings.HasPrefix(filepath.Clean(destPath), filepath.Clean(nsDir)) {
-		writeError(w, http.StatusBadRequest, "invalid key")
-		return
+		return nil, errInvalidKey
 	}
 
 	old, err := app.store.GetAsset(ns, key)
 	if err != nil {
 		log.Printf("upload get old: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal error")
-		return
+		return nil, err
 	}
 
 	if err := os.Rename(tmpName, destPath); err != nil {
 		log.Printf("upload rename: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal error")
-		return
+		return nil, err
 	}
 
 	if old != nil && old.StoragePath != filepath.ToSlash(filepath.Join(ns, filename)) {
@@ -253,16 +279,9 @@ func (app *App) handleUpload(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := app.store.UpsertAsset(asset); err != nil {
 		log.Printf("upload upsert: %v", err)
-		writeError(w, http.StatusInternalServerError, "internal error")
-		return
+		return nil, err
 	}
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"namespace": ns,
-		"key":       key,
-		"sha256":    asset.SHA256,
-		"size":      asset.Size,
-	})
+	return asset, nil
 }
 
 // DELETE /namespaces/{ns}/assets/{key}

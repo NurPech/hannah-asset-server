@@ -52,7 +52,7 @@ Admin-Flag per User — Admins haben vollen Zugriff ohne Rollenkonfiguration.
 
 ### OAuth2 / OIDC
 
-Wird optional über die WebUI konfiguriert (Admin → OAuth2-Tab). Der Redirect-URL wird automatisch aus `BASE_URL` abgeleitet.
+Wird optional über die WebUI konfiguriert (Admin → OAuth2-Tab). Der Redirect-URL wird automatisch aus dem Request (`X-Forwarded-Proto` + `Host`) abgeleitet.
 
 **Keycloak Group Sync**: Wenn der ID-Token einen `groups`-Claim enthält, werden die Gruppenmitgliedschaften des Users bei jedem Login mit den DB-Gruppen abgeglichen (Full Replace). Keycloak-Setup: „Group Membership"-Mapper mit Token Claim Name `groups`, Full group path **aus**.
 
@@ -60,12 +60,12 @@ Wird optional über die WebUI konfiguriert (Admin → OAuth2-Tab). Der Redirect-
 
 | Variable | Default | Beschreibung |
 |---|---|---|
-| `BASE_URL` | **required** | Öffentliche URL, z.B. `https://assets.hannah.local` |
 | `PORT` | `8080` | HTTP-Port |
 | `STORAGE_PATH` | `/data` | Verzeichnis für DB + Asset-Dateien |
 | `DB_PATH` | `$STORAGE_PATH/assets.db` | SQLite-Pfad |
 | `ADMIN_PASSWORD` | — | Bootstrapt Admin-User beim ersten Start (kein User in DB) |
 | `INSECURE_COOKIE` | — | Auf `true` setzen für HTTP ohne TLS (dev) |
+| `MAX_IMPORT_BYTES` | `2147483648` | Maximale Größe eines Import-Bundles (Bytes) |
 
 ## API
 
@@ -86,6 +86,17 @@ Wird optional über die WebUI konfiguriert (Admin → OAuth2-Tab). Der Redirect-
 | `DELETE` | `/namespaces/{ns}/assets/{key}` | Asset löschen |
 | `GET` | `/namespaces/{ns}/assets` | Assets auflisten, die direkt in `ns` liegen (nicht geerbt) |
 | `GET` | `/api/assets` | Alle Assets über alle Namespaces (JSON, admin: alle; sonst nur erlaubte) |
+| `GET` | `/api/export?namespace=<ns>[&keys=a,b]` | Assets, die direkt in `ns` liegen, als `.tar.gz`-Bundle streamen (read-Recht auf `ns`) |
+| `POST` | `/api/import?namespace=<ns>[&overwrite=true]` | Bundle (Request-Body) importieren (write-Recht auf `ns`), Antwort ist ein JSON-Ergebnisbericht |
+
+### Export / Import
+
+Zum Weitergeben von Assets an andere Asset-Server (kein Pull, nur Datei-Austausch). In der WebUI: Namespace-Filter wählen → **Export**; auf dem Ziel-Server **Import**.
+
+- **Bundle**: `.tar.gz`, erster Eintrag `manifest.json` (`format`, `namespace`, Assets mit `key`, `mime_type`, `sha256`, `size`), danach `files/<key>`. Exportiert werden nur Assets, die direkt im Namespace liegen — geerbte nicht. Metadaten (Dauer, Auflösung etc.) werden beim Import neu extrahiert.
+- **Ziel-Namespace**: Default ist der Name aus dem Bundle, per `namespace=` überschreibbar. Existiert er nicht, wird er angelegt — nur für Admins (Root-Namespace ohne Parent), sonst `400`.
+- **Konflikte**: Gleicher Key + gleicher SHA256 → `unchanged`. Gleicher Key + anderer Inhalt → `conflicts` (übersprungen), außer `overwrite=true`. Jede Datei wird gegen den SHA256 im Manifest geprüft.
+- **Größe**: `MAX_IMPORT_BYTES` begrenzt das Bundle; der Import streamt ohne Zwischendatei.
 
 ### Manifest-Format
 
@@ -148,7 +159,6 @@ services:
   asset-server:
     image: registry.example.com/hannah-asset-server:latest
     environment:
-      BASE_URL: https://assets.hannah.local
       ADMIN_PASSWORD: changeme
     volumes:
       - asset-data:/data
@@ -166,10 +176,10 @@ cd app
 go run .
 ```
 
-Benötigt `BASE_URL` als Env-Variable. Für lokale Entwicklung ohne HTTPS:
+Für lokale Entwicklung ohne HTTPS:
 
 ```bash
-BASE_URL=http://localhost:8080 INSECURE_COOKIE=true go run .
+INSECURE_COOKIE=true go run .
 ```
 
 CI baut das Docker-Image automatisch bei Push auf `master` (multi-arch via Kaniko).

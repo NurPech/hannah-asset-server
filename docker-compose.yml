@@ -6,7 +6,6 @@ services:
     volumes:
       - asset-data:/data
     environment:
-      - BASE_URL=https://assets.example.com
       - STORAGE_PATH=/data
       # - ADMIN_PASSWORD=change-me  # set on first run to bootstrap an admin user
     restart: unless-stopped
