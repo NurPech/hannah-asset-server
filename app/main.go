@@ -41,6 +41,10 @@ func main() {
 		log.Fatal("MAX_IMPORT_BYTES must be a positive integer")
 	}
 
+	if err := dropPrivileges(storagePath); err != nil {
+		log.Fatalf("cannot run as non-root (REQUIRE_NON_ROOT=true): %v", err)
+	}
+
 	if err := os.MkdirAll(storagePath, 0o755); err != nil {
 		log.Fatalf("cannot create storage path: %v", err)
 	}

@@ -66,6 +66,7 @@ Wird optional über die WebUI konfiguriert (Admin → OAuth2-Tab). Der Redirect-
 | `ADMIN_PASSWORD` | — | Bootstrapt Admin-User beim ersten Start (kein User in DB) |
 | `INSECURE_COOKIE` | — | Auf `true` setzen für HTTP ohne TLS (dev) |
 | `MAX_IMPORT_BYTES` | `2147483648` | Maximale Größe eines Import-Bundles (Bytes) |
+| `REQUIRE_NON_ROOT` | — | Auf `true` setzen: Server bricht ab, wenn er nicht auf uid 1000 wechseln kann (statt als root weiterzulaufen). Siehe [Container-User](#container-user) |
 
 ## API
 
@@ -168,6 +169,18 @@ services:
 volumes:
   asset-data:
 ```
+
+### Container-User
+
+Der Server-Prozess läuft als **uid/gid 1000:1000**, nicht als root.
+
+Das Image ist `FROM scratch` (keine Shell, kein `chown`-Entrypoint) und bestehende Volumes wurden früher von root beschrieben. Deshalb startet der Container zunächst als root, übergibt `STORAGE_PATH` (rekursiv) an `1000:1000` und wechselt dann den Benutzer — bevor Datenbank und HTTP-Listener geöffnet werden. Das passiert automatisch beim ersten Start nach dem Update; Daten gehen nicht verloren, ein manueller Schritt ist nicht nötig. Folgestarts prüfen nur das Top-Level-Verzeichnis. Neue Dateien gehören ab dann uid 1000. Neue Volumes sind von Anfang an korrekt.
+
+- **Bereits als Nicht-root gestartet** (z. B. `user: "1000:1000"` im Compose): die Migration entfällt. Das Volume muss dann einmalig `1000:1000` gehören, z. B. `docker run --rm -v <volume>:/data alpine chown -R 1000:1000 /data`.
+- **Wechsel nicht möglich** (NFS mit `root_squash`, entzogene Capabilities, …): der Server läuft mit einer Warnung im Log weiter als root, sodass nach dem Update nichts ausfällt. Mit `REQUIRE_NON_ROOT=true` bricht er stattdessen mit einer Fehlermeldung ab. Abhilfe: Ownership einmalig auf dem Storage setzen (siehe oben).
+- **`DB_PATH` außerhalb von `STORAGE_PATH`**: dieses Verzeichnis wird nicht migriert und muss für uid 1000 schreibbar sein.
+
+> **Ausblick:** Ein späteres Release setzt `USER 1000:1000` direkt im Image und entfernt die Migration. Volumes sollten bis dahin einmal mit dieser Version gestartet worden sein, sonst bricht der Start mit „permission denied“ ab.
 
 ## Entwicklung
 
